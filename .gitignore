@@ -1,0 +1,11 @@
+target/
+.env
+*.log
+.idea/
+*.iml
+.vscode/
+.DS_Store
+load-test/results/*
+!load-test/results/.gitkeep
+chaos/results/*
+!chaos/results/.gitkeep

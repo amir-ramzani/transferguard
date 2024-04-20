@@ -1,0 +1,93 @@
+# TransferGuard defaults. Twelve-factor: only URLs and secrets change between laptop and AWS.
+spring:
+  application:
+    name: transferguard
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/transferguard}
+    username: ${DB_APP_USER:transferguard_app}
+    password: ${DB_APP_PASSWORD:}
+    hikari:
+      # Fail fast when PostgreSQL is down: the caller gets a 503, never an unrecorded decision.
+      connection-timeout: 250
+      validation-timeout: 250
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    # Flyway runs as the migrator role; the app role cannot change the schema or rewrite audit rows.
+    user: ${DB_MIGRATOR_USER:transferguard_migrator}
+    password: ${DB_MIGRATOR_PASSWORD:}
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: 8080
+  shutdown: graceful
+
+management:
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      # Readiness includes PostgreSQL but not Redis: degraded mode handles a Redis outage.
+      group:
+        readiness:
+          include: readinessState,db
+  metrics:
+    tags:
+      application: transferguard
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  tracing:
+    enabled: ${TRACING_EXPORT_ENABLED:false}
+    sampling:
+      probability: ${TRACING_SAMPLING:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+    metrics:
+      export:
+        enabled: false
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    # Swagger UI shows the committed contract (docs/openapi.yaml), not a generated approximation.
+    url: /openapi.yaml
+    oauth:
+      client-id: local-admin
+      client-secret: any-secret
+
+transferguard:
+  max-request-bytes: 16384
+  security:
+    issuers: ${OAUTH_ISSUERS:http://localhost:8090/transferguard}
+    jwk-set-uri: ${OAUTH_JWKS_URI:http://localhost:8090/transferguard/jwks}
+    allowed-client-ids: ${OAUTH_ALLOWED_CLIENT_IDS:}
+    max-token-lifetime: PT15M
+  redis:
+    url: ${REDIS_URL:redis://localhost:6379}
+    command-timeout: 50ms
+    bulk-timeout: 2s
+    connect-timeout: 500ms
+  screening:
+    max-clock-skew: PT5M
+  rate-limit:
+    enabled: true
+    requests-per-second: ${RATE_LIMIT_RPS:500}
+    burst: ${RATE_LIMIT_BURST:1000}
