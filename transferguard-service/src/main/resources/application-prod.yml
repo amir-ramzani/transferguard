@@ -1,0 +1,22 @@
+# AWS: exactly one Cognito issuer; migrations run as a separate Job (MigrateMain); no Swagger UI.
+spring:
+  flyway:
+    enabled: false
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+transferguard:
+  security:
+    issuers: ${COGNITO_ISSUER}
+    jwk-set-uri: ${COGNITO_ISSUER}/.well-known/jwks.json
+    allowed-client-ids: ${OAUTH_ALLOWED_CLIENT_IDS}
+
+management:
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING:0.1}
+    enabled: true

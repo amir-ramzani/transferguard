@@ -1,0 +1,23 @@
+# Docker Compose. The mock issuer stamps `iss` with the host the token was requested from, so both
+# the browser's (localhost:8090) and the simulator's (mock-oauth2:8080) issuer are trusted. Signing
+# keys always come from the internal URL.
+transferguard:
+  security:
+    issuers:
+      - http://localhost:8090/transferguard
+      - http://mock-oauth2:8080/transferguard
+    jwk-set-uri: http://mock-oauth2:8080/transferguard/jwks
+    allowed-client-ids:
+      - local-admin
+      - local-analyst
+      - transferguard-simulator
+      - k6
+  redis:
+    url: ${REDIS_URL:redis://toxiproxy:6379}
+
+management:
+  tracing:
+    enabled: ${TRACING_EXPORT_ENABLED:false}
+  otlp:
+    tracing:
+      endpoint: ${OTLP_TRACES_ENDPOINT:http://tempo:4318/v1/traces}
