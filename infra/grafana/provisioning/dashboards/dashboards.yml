@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: transferguard
+    folder: TransferGuard
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

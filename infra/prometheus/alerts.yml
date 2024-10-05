@@ -1,0 +1,35 @@
+groups:
+  - name: transferguard
+    rules:
+      - alert: ScreeningLatencyHigh
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{uri="/api/v1/screenings",method="POST"}[1m]))) > 0.1
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: "Screening p95 latency is over 100 ms"
+      - alert: HoldRateSpike
+        expr: |
+          (sum(rate(transferguard_screenings_total{decision="HOLD"}[5m])) / sum(rate(transferguard_screenings_total[5m])))
+            > 3 * (sum(rate(transferguard_screenings_total{decision="HOLD"}[1h])) / sum(rate(transferguard_screenings_total[1h])))
+        for: 10m
+        labels: {severity: ticket}
+        annotations:
+          summary: "HOLD rate is over 3x its 1-hour baseline (bad tuning change, or an attack)"
+      - alert: AuditChainBroken
+        expr: transferguard_audit_chain_valid == 0
+        labels: {severity: page}
+        annotations:
+          summary: "The audit hash chain failed verification: possible tampering"
+      - alert: RedisBreakerOpen
+        expr: resilience4j_circuitbreaker_state{name="redis",state="open"} == 1
+        for: 1m
+        labels: {severity: page}
+        annotations:
+          summary: "Redis circuit breaker open: screening is running in the configured fail mode"
+      - alert: DegradedScreenings
+        expr: sum(rate(transferguard_screenings_total{degraded="true"}[5m])) > 0
+        for: 5m
+        labels: {severity: ticket}
+        annotations:
+          summary: "Screenings are running degraded (R1, R5 and R6 skipped)"

@@ -1,0 +1,52 @@
+{
+  "interactiveLogin": false,
+  "httpServer": "NettyWrapper",
+  "tokenCallbacks": [
+    {
+      "issuerId": "transferguard",
+      "tokenExpiry": 900,
+      "requestMappings": [
+        {
+          "requestParam": "client_id",
+          "match": "transferguard-simulator",
+          "claims": {
+            "sub": "transferguard-simulator",
+            "client_id": "transferguard-simulator",
+            "token_use": "access",
+            "scope": "transferguard/screening.write transferguard/screening.read transferguard/events.write"
+          }
+        },
+        {
+          "requestParam": "client_id",
+          "match": "k6",
+          "claims": {
+            "sub": "k6",
+            "client_id": "k6",
+            "token_use": "access",
+            "scope": "transferguard/screening.write transferguard/screening.read transferguard/events.write"
+          }
+        },
+        {
+          "requestParam": "client_id",
+          "match": "local-analyst",
+          "claims": {
+            "sub": "local-analyst",
+            "client_id": "local-analyst",
+            "token_use": "access",
+            "scope": "transferguard/cases.read transferguard/cases.write transferguard/screening.read"
+          }
+        },
+        {
+          "requestParam": "grant_type",
+          "match": "*",
+          "claims": {
+            "sub": "local-admin",
+            "client_id": "local-admin",
+            "token_use": "access",
+            "scope": "transferguard/screening.write transferguard/screening.read transferguard/events.write transferguard/cases.read transferguard/cases.write transferguard/rules.admin transferguard/audit.read"
+          }
+        }
+      ]
+    }
+  ]
+}

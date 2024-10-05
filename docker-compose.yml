@@ -1,0 +1,132 @@
+# TransferGuard on a laptop. Profiles:
+#   (default)      API, PostgreSQL, Redis (behind Toxiproxy), mock OAuth2   ~2 GB
+#   observability  + Prometheus, Grafana, Tempo                             ~5 GB in total
+#   sim            + the traffic simulator
+#   load           + k6
+# Build the images first: `make image` (Jib, no Dockerfile needed).
+name: transferguard
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: transferguard
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env}
+      TG_APP_PASSWORD: ${TG_APP_PASSWORD:?copy .env.example to .env}
+      TG_MIGRATOR_PASSWORD: ${TG_MIGRATOR_PASSWORD:?copy .env.example to .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d transferguard"]
+      interval: 3s
+      retries: 20
+
+  redis:
+    image: redis:7
+    # Features are rebuildable from PostgreSQL, so no persistence.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
+
+  toxiproxy:
+    # Sits between the API and Redis so the chaos test can add latency or cut the connection.
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./infra/toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
+    ports: ["8474:8474", "6379:6379"]
+    depends_on:
+      redis: {condition: service_healthy}
+
+  mock-oauth2:
+    # Stands in for Amazon Cognito: same claims (token_use, client_id) and transferguard/* scopes.
+    image: ghcr.io/navikt/mock-oauth2-server:7.0.1
+    environment:
+      SERVER_PORT: "8080"
+      JSON_CONFIG_PATH: /config/config.json
+    volumes:
+      - ./infra/mock-oauth2/config.json:/config/config.json:ro
+    ports: ["8090:8080"]
+
+  transferguard:
+    image: ${TG_IMAGE:-ghcr.io/nulled/transferguard:local}
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_URL: jdbc:postgresql://postgres:5432/transferguard
+      DB_APP_PASSWORD: ${TG_APP_PASSWORD}
+      DB_MIGRATOR_PASSWORD: ${TG_MIGRATOR_PASSWORD}
+      REDIS_URL: redis://toxiproxy:6379
+      TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
+      OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+    ports:
+      - "8080:8080"   # API and Swagger UI
+      - "8081:8081"   # Actuator (management port; never routed by a load balancer)
+    read_only: true
+    tmpfs: [/tmp]
+    depends_on:
+      postgres: {condition: service_healthy}
+      toxiproxy: {condition: service_started}
+      mock-oauth2: {condition: service_started}
+
+  prometheus:
+    profiles: [observability]
+    image: prom/prometheus:v3.9.1
+    volumes:
+      - ./infra/prometheus:/etc/prometheus:ro
+    ports: ["9090:9090"]
+
+  tempo:
+    profiles: [observability]
+    image: grafana/tempo:2.9.0
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./infra/tempo/tempo.yaml:/etc/tempo.yaml:ro
+
+  grafana:
+    profiles: [observability]
+    image: grafana/grafana:13.2.6
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus, tempo]
+
+  simulator:
+    profiles: [sim]
+    image: ${TG_SIM_IMAGE:-ghcr.io/nulled/transferguard-simulator:local}
+    environment:
+      TG_API_URL: http://transferguard:8080/api/v1
+      TG_TOKEN_URL: http://mock-oauth2:8080/transferguard/token
+      TG_READY_URL: http://transferguard:8081/actuator/health/readiness
+      DB_URL: jdbc:postgresql://postgres:5432/transferguard
+      DB_APP_PASSWORD: ${TG_APP_PASSWORD}
+      REDIS_URL: redis://toxiproxy:6379
+      SIM_NORMAL_ACCOUNTS: ${SIM_NORMAL_ACCOUNTS:-1000}
+    command: ["scenarios"]
+    depends_on: [transferguard]
+
+  k6:
+    profiles: [load]
+    image: grafana/k6:1.4.0
+    environment:
+      BASE_URL: http://transferguard:8080/api/v1
+      TOKEN_URL: http://mock-oauth2:8080/transferguard/token
+      RATE: ${K6_RATE:-200}
+      DURATION: ${K6_DURATION:-5m}
+      NORMAL_ACCOUNTS: ${SIM_NORMAL_ACCOUNTS:-1000}
+    volumes:
+      - ./load-test:/scripts
+    command: ["run", "--summary-export=/scripts/results/summary.json", "/scripts/screening.js"]
+    depends_on: [transferguard]
+
+volumes:
+  pgdata:
