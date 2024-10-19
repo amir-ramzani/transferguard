@@ -20,6 +20,7 @@
 
   <modules>
     <module>transferguard-service</module>
+    <module>transferguard-simulator</module>
   </modules>
 
   <properties>
