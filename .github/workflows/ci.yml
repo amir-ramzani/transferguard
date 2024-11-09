@@ -1,0 +1,165 @@
+name: CI/CD
+
+# pretest (unit, mutation) ──► integration (Testcontainers + coverage gate) ──┐
+# codeql · gitleaks · trivy-fs ───────────────────────────────────────────────┼─► publish (main only:
+#                                                                              │   push, scan, SBOM, sign)
+#                                                                              └─► posttest (smoke on Compose:
+#                                                                                  PR = locally built images,
+#                                                                                  main = the published digests)
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pretest:
+    name: Pre-test
+    uses: ./.github/workflows/pretest.yml
+
+  integration:
+    name: Integration tests and coverage
+    needs: pretest
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: "21", cache: maven}
+      # Unit + Testcontainers ITs (PostgreSQL 16, Redis 7), 80% line coverage on rules/screening/audit.
+      - run: ./mvnw -B verify -Pci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-reports
+          path: |
+            transferguard-service/target/site/jacoco
+            transferguard-service/target/failsafe-reports
+      - name: SonarCloud quality gate
+        if: env.SONAR_TOKEN != ''
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          ./mvnw -B -DskipTests org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          -Dsonar.qualitygate.wait=true
+          -Dsonar.organization=${{ github.repository_owner }}
+          -Dsonar.projectKey=${{ github.repository_owner }}_transferguard
+          -Dsonar.coverage.jacoco.xmlReportPaths=transferguard-service/target/site/jacoco/jacoco.xml
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v3
+
+  secrets:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  trivy-fs:
+    name: Trivy file-system scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  publish:
+    name: Publish images (scan, SBOM, sign)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [integration, codeql, secrets, trivy-fs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write   # keyless cosign signing with GitHub OIDC
+    outputs:
+      image: ${{ steps.refs.outputs.image }}
+      sim_image: ${{ steps.refs.outputs.sim_image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: "21", cache: maven}
+      - name: Registry
+        id: reg
+        run: echo "registry=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+      - name: Build and push both images with Jib
+        run: >
+          ./mvnw -B -DskipTests package jib:build
+          -Dimage.registry=${{ steps.reg.outputs.registry }}
+          -Djib.to.tags=sha-${GITHUB_SHA::12},latest
+          -Djib.to.auth.username=${{ github.actor }}
+          -Djib.to.auth.password=${{ secrets.GITHUB_TOKEN }}
+          -Djib.outputPaths.digest=target/jib-image.digest
+      - name: Image references by digest
+        id: refs
+        run: |
+          echo "image=${{ steps.reg.outputs.registry }}/transferguard@$(cat transferguard-service/target/jib-image.digest)" >> "$GITHUB_OUTPUT"
+          echo "sim_image=${{ steps.reg.outputs.registry }}/transferguard-simulator@$(cat transferguard-simulator/target/jib-image.digest)" >> "$GITHUB_OUTPUT"
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.refs.outputs.image }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: CycloneDX SBOMs
+        run: ./mvnw -B org.cyclonedx:cyclonedx-maven-plugin:makeBom -DoutputFormat=json
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign the images and attest the SBOMs (keyless)
+        run: |
+          cosign sign --yes "${{ steps.refs.outputs.image }}"
+          cosign attest --yes --type cyclonedx --predicate transferguard-service/target/bom.json "${{ steps.refs.outputs.image }}"
+          cosign sign --yes "${{ steps.refs.outputs.sim_image }}"
+          cosign attest --yes --type cyclonedx --predicate transferguard-simulator/target/bom.json "${{ steps.refs.outputs.sim_image }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            transferguard-service/target/bom.json
+            transferguard-simulator/target/bom.json
+
+  posttest:
+    name: Post-test
+    needs: [integration, publish]
+    # On PRs publish is skipped and posttest builds the images itself; on main it tests the published digests.
+    if: always() && needs.integration.result == 'success' && (needs.publish.result == 'success' || needs.publish.result == 'skipped')
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/posttest.yml
+    with:
+      image: ${{ needs.publish.outputs.image }}
+      sim_image: ${{ needs.publish.outputs.sim_image }}

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "packageRules": [
+    {"matchUpdateTypes": ["patch"], "automerge": true},
+    {"matchPackageNames": ["org.springframework.boot:**"], "groupName": "Spring Boot"}
+  ]
+}

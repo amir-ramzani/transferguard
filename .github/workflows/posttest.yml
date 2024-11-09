@@ -1,0 +1,117 @@
+name: Post-test (smoke)
+
+# Runs the real stack in Docker Compose and tests it from the outside: readiness, seeded history,
+# the five labelled scenarios, and scripts/smoke-test.sh (all 19 operations with real mock-OAuth2
+# tokens). Optionally a short k6 load smoke.
+#
+# With `image` set it tests that published image (CD path); without it, it builds both images
+# from the checked-out commit with Jib (PR path).
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: Service image to test (e.g. ghcr.io/owner/transferguard@sha256:...). Empty = build locally.
+        type: string
+        default: ""
+      sim_image:
+        description: Simulator image. Empty = build locally.
+        type: string
+        default: ""
+      load:
+        description: Also run a 1-minute k6 smoke at 20 rps.
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Service image to test. Empty = build from this commit.
+        type: string
+        default: ""
+      sim_image:
+        description: Simulator image. Empty = build from this commit.
+        type: string
+        default: ""
+      load:
+        description: Also run a 1-minute k6 smoke at 20 rps.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  SIM_NORMAL_ACCOUNTS: "200"
+
+jobs:
+  smoke:
+    name: Smoke test on Docker Compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images from this commit
+        if: inputs.image == ''
+        uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: "21", cache: maven}
+      - if: inputs.image == ''
+        run: ./mvnw -B -DskipTests package jib:dockerBuild
+
+      - name: Use published images
+        if: inputs.image != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: inputs.image != ''
+        run: |
+          echo "TG_IMAGE=${{ inputs.image }}" >> "$GITHUB_ENV"
+          echo "TG_SIM_IMAGE=${{ inputs.sim_image }}" >> "$GITHUB_ENV"
+          docker pull "${{ inputs.image }}"
+          docker pull "${{ inputs.sim_image }}"
+
+      - name: Start the stack
+        run: |
+          cp .env.example .env
+          docker compose up -d
+
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:8081/actuator/health/readiness; then echo; exit 0; fi
+            sleep 2
+          done
+          echo "API not ready after 3 minutes"; exit 1
+
+      - name: Seed 30 days of history
+        run: docker compose --profile sim run --rm --no-deps simulator seed
+
+      - name: Five labelled scenarios
+        run: docker compose --profile sim run --rm --no-deps simulator scenarios
+
+      - name: Smoke test (all 19 operations)
+        run: ./scripts/smoke-test.sh
+
+      - name: k6 load smoke (20 rps for 1 minute)
+        if: inputs.load
+        run: |
+          mkdir -p load-test/results
+          K6_RATE=20 K6_DURATION=1m docker compose --profile load run --rm --no-deps k6
+
+      - name: Collect logs
+        if: always()
+        run: |
+          docker compose ps -a > compose-ps.txt
+          docker compose logs --no-color > compose.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: posttest-${{ github.run_attempt }}
+          path: |
+            compose-ps.txt
+            compose.log
+            load-test/results
+      - if: always()
+        run: docker compose --profile sim --profile load down -v

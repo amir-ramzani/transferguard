@@ -1,0 +1,18 @@
+name: Nightly
+
+# 02:00 in Kuala Lumpur, so R4 (odd hours) fires in the scenarios too.
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  posttest:
+    name: Smoke and k6 load smoke on the latest commit
+    uses: ./.github/workflows/posttest.yml
+    with:
+      load: true
