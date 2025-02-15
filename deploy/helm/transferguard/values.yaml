@@ -1,0 +1,57 @@
+image:
+  repository: ghcr.io/nulled/transferguard
+  tag: "0.1.0-SNAPSHOT"
+  pullPolicy: IfNotPresent
+
+replicaCount: 3
+
+profile: prod
+
+# Non-secret configuration. Secrets (DB passwords) come from `existingSecret`, which External Secrets
+# Operator syncs from AWS Secrets Manager in AWS, or which you create by hand on kind.
+config:
+  dbUrl: jdbc:postgresql://transferguard-db-rw:5432/transferguard
+  redisUrl: redis://transferguard-redis:6379
+  cognitoIssuer: https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_EXAMPLE
+  allowedClientIds: transfer-service-client-id
+  otlpTracesEndpoint: http://otel-collector.observability:4318/v1/traces
+
+existingSecret: transferguard-db   # keys: DB_APP_PASSWORD, DB_MIGRATOR_PASSWORD
+
+resources:
+  requests: {cpu: 500m, memory: 768Mi}
+  limits: {memory: 1Gi}
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  minAvailable: 2
+
+migrations:
+  enabled: true
+
+serviceAccount:
+  create: true
+  # In EKS, annotate for IAM roles for service accounts (IRSA), e.g.
+  # eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/transferguard
+  annotations: {}
+
+networkPolicy:
+  enabled: true
+  # Namespace and pod labels of the ingress controller allowed to reach the API.
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+  # Where Prometheus scrapes from (management port only).
+  metricsFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: observability
+  postgresSelector: {cnpg.io/cluster: transferguard-db}
+  redisSelector: {app.kubernetes.io/name: transferguard-redis}
+  otelNamespace: observability

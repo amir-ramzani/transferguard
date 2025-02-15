@@ -1,0 +1,13 @@
+# kind: run the `local` profile against the Compose-style mock issuer and in-cluster stores.
+profile: local
+replicaCount: 3
+image:
+  tag: local
+  pullPolicy: Never
+config:
+  dbUrl: jdbc:postgresql://transferguard-db-rw:5432/transferguard
+  redisUrl: redis://transferguard-redis:6379
+autoscaling:
+  enabled: false
+networkPolicy:
+  enabled: false

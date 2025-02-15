@@ -1,0 +1,31 @@
+{{- if .Values.migrations.enabled }}
+# Flyway runs as the migrator role before install and upgrade; application pods never hold DDL rights.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-migrate-{{ .Release.Revision }}
+  labels: {{- include "tg.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["java", "-cp", "@/app/jib-classpath-file", "io.github.nulled.transferguard.MigrateMain"]
+          env:
+            - {name: DB_URL, value: {{ .Values.config.dbUrl | quote }}}
+            - {name: DB_MIGRATOR_USER, value: transferguard_migrator}
+            - name: DB_MIGRATOR_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ .Values.existingSecret }}, key: DB_MIGRATOR_PASSWORD}}
+          securityContext: {{- include "tg.securityContext" . | nindent 12 }}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 512Mi}
+{{- end }}

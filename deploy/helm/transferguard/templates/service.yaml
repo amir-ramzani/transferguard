@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  labels: {{- include "tg.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "tg.selector" . | nindent 4 }}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+---
+# Management port: scraped by Prometheus inside the cluster, never exposed through the ingress.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-management
+  labels: {{- include "tg.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "tg.selector" . | nindent 4 }}
+  ports:
+    - {name: management, port: 8081, targetPort: management}

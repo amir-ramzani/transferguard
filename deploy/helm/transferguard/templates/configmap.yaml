@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels: {{- include "tg.labels" . | nindent 4 }}
+data:
+  SPRING_PROFILES_ACTIVE: {{ .Values.profile | quote }}
+  DB_URL: {{ .Values.config.dbUrl | quote }}
+  REDIS_URL: {{ .Values.config.redisUrl | quote }}
+  COGNITO_ISSUER: {{ .Values.config.cognitoIssuer | quote }}
+  OAUTH_ALLOWED_CLIENT_IDS: {{ .Values.config.allowedClientIds | quote }}
+  OTLP_TRACES_ENDPOINT: {{ .Values.config.otlpTracesEndpoint | quote }}
+  # Migrations run in the pre-install/pre-upgrade Job, never in application pods.
+  FLYWAY_ENABLED: "false"

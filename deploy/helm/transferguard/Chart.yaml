@@ -1,0 +1,6 @@
+apiVersion: v2
+name: transferguard
+description: Real-time scam and mule-account screening for bank transfers (codename Pengawal)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
