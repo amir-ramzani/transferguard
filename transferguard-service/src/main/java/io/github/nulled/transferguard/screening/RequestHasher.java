@@ -4,8 +4,8 @@ import io.github.nulled.transferguard.common.CanonicalJson;
 import io.github.nulled.transferguard.common.Sha256;
 import io.github.nulled.transferguard.screening.api.ScreeningRequest;
 import org.springframework.stereotype.Component;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * SHA-256 of the canonical (RFC 8785) request body. {@code requestedAt} is normalised to an instant,
@@ -14,9 +14,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 @Component
 public class RequestHasher {
 
-    private final ObjectMapper mapper;
+    private final JsonMapper mapper;
 
-    public RequestHasher(ObjectMapper mapper) {
+    public RequestHasher(JsonMapper mapper) {
         this.mapper = mapper;
     }
 

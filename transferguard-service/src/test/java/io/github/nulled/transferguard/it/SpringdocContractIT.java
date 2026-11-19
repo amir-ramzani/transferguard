@@ -10,7 +10,7 @@ import java.net.http.HttpResponse;
 import java.util.Set;
 import java.util.TreeSet;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /** The operations springdoc finds in the running app are exactly those in docs/openapi.yaml. */
 class SpringdocContractIT extends IntegrationTest {

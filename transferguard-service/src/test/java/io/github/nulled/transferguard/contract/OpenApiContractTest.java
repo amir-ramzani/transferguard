@@ -15,7 +15,7 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The code and the committed contract cannot drift: every operation in docs/openapi.yaml has exactly
@@ -44,7 +44,7 @@ class OpenApiContractTest {
         spec.get("paths").properties().forEach(path -> path.getValue().properties().forEach(op -> {
             if (METHODS.contains(op.getKey())) {
                 JsonNode scopes = op.getValue().at("/security/0/oauth2");
-                ops.put(op.getKey().toUpperCase() + " " + path.getKey(), scopes.get(0).asText());
+                ops.put(op.getKey().toUpperCase() + " " + path.getKey(), scopes.get(0).asString());
             }
         }));
         return ops;

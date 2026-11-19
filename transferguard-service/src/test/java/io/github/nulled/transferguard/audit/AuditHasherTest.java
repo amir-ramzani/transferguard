@@ -4,14 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 class AuditHasherTest {
 
-    private final JsonMapper mapper = JsonMapper.builder().findAndAddModules().build();
-    private final JsonNode before = tree("{\"weight\":40,\"params\":{\"window\":\"PT10M\",\"maxCount\":5}}");
-    private final JsonNode after = tree("{\"params\":{\"maxCount\":5,\"window\":\"PT15M\"},\"weight\":30}");
+    private final JsonMapper mapper = JsonMapper.builder().build();
+    private final JsonNode before = mapper.readTree("{\"weight\":40,\"params\":{\"window\":\"PT10M\",\"maxCount\":5}}");
+    private final JsonNode after = mapper.readTree("{\"params\":{\"maxCount\":5,\"window\":\"PT15M\"},\"weight\":30}");
     private final Instant at = Instant.parse("2026-11-19T01:42:10.184Z");
 
     /** Vector computed independently (Python hashlib + json.dumps(sort_keys=True)) as sha256("0"*64 + canonical). */
@@ -39,14 +39,6 @@ class AuditHasherTest {
     void nullAndAbsentBeforeHashTheSame() {
         assertThat(AuditHasher.hash(AuditHasher.GENESIS, "a", "X", "e", null, after, at))
                 .isEqualTo(AuditHasher.hash(AuditHasher.GENESIS, "a", "X", "e",
-                        com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.nullNode(), after, at));
-    }
-
-    private JsonNode tree(String json) {
-        try {
-            return mapper.readTree(json);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            throw new IllegalArgumentException(e);
-        }
+                        tools.jackson.databind.node.JsonNodeFactory.instance.nullNode(), after, at));
     }
 }

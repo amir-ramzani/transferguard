@@ -38,7 +38,7 @@ public class RequestSizeFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         if (request.getContentLengthLong() > max) {
-            problems.write(request, response, HttpStatus.PAYLOAD_TOO_LARGE, "payload-too-large", "Payload too large",
+            problems.write(request, response, HttpStatus.CONTENT_TOO_LARGE, "payload-too-large", "Payload too large",
                     "Request bodies are limited to " + (max / 1024) + " KB.", Map.of());
             return;
         }

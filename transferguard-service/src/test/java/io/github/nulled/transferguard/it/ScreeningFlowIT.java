@@ -13,7 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 class ScreeningFlowIT extends IntegrationTest {
 
@@ -24,7 +24,7 @@ class ScreeningFlowIT extends IntegrationTest {
         JsonNode spec = OpenApi.load();
         JsonNode request = spec.at("/paths/~1screenings/post/requestBody/content/application~1json/examples/takeover/value");
         JsonNode expected = spec.at("/components/examples/HoldResponse/value");
-        String source = request.get("sourceAccount").asText();
+        String source = request.get("sourceAccount").asString();
 
         superuser().update("""
                 INSERT INTO account_daily_stats (account_no, day, amount_sum, txn_count) VALUES (?, DATE '2026-11-10', 1800.00, 3)
@@ -43,8 +43,8 @@ class ScreeningFlowIT extends IntegrationTest {
         assertThat(body.get("reasons")).isEqualTo(expected.get("reasons"));
         assertThat(body.get("transactionId")).isEqualTo(expected.get("transactionId"));
         assertThat(body.get("screenedAt")).isEqualTo(expected.get("screenedAt"));
-        assertThat(body.get("caseId").asText()).matches("^CASE-[0-9]{6,}$");
-        assertThat(r.header("Location")).isEqualTo("/api/v1/screenings/" + body.get("screeningId").asText());
+        assertThat(body.get("caseId").asString()).matches("^CASE-[0-9]{6,}$");
+        assertThat(r.header("Location")).isEqualTo("/api/v1/screenings/" + body.get("screeningId").asString());
     }
 
     @Test
@@ -61,7 +61,7 @@ class ScreeningFlowIT extends IntegrationTest {
         request.put("amount", "121.00");
         Response changed = call("POST", "/screenings", request);
         assertThat(changed.status()).isEqualTo(422);
-        assertThat(changed.body().get("type").asText()).endsWith("/idempotency-mismatch");
+        assertThat(changed.body().get("type").asString()).endsWith("/idempotency-mismatch");
     }
 
     @Test
@@ -109,7 +109,7 @@ class ScreeningFlowIT extends IntegrationTest {
         }
         Response sixth = call("POST", "/screenings", transfer(txn(), source, payee, "20.00"));
         assertThat(reasonCodes(sixth)).contains("R1_VELOCITY");
-        assertThat(sixth.body().get("decision").asText()).isEqualTo("CHALLENGE");
+        assertThat(sixth.body().get("decision").asString()).isEqualTo("CHALLENGE");
 
         // Ten minutes after the first attempt it has left the window: 5 in window, plus this one = 6 again.
         CLOCK.set("2026-11-19T12:10:00+08:00");
@@ -128,13 +128,13 @@ class ScreeningFlowIT extends IntegrationTest {
 
         Response first = call("POST", "/screenings", transfer(txn(), source, payee, "3500.00"));
         assertThat(reasonCodes(first)).contains("R2_NEW_PAYEE_HIGH_AMOUNT");
-        String id = first.body().get("screeningId").asText();
+        String id = first.body().get("screeningId").asString();
         assertThat(call("POST", "/screenings/" + id + "/outcome",
                 Map.of("outcome", "CHALLENGE_FAILED", "occurredAt", CLOCK.local())).status()).isEqualTo(204);
 
         Response second = call("POST", "/screenings", transfer(txn(), source, payee, "3500.00"));
         assertThat(reasonCodes(second)).as("challenged, never completed: still new").contains("R2_NEW_PAYEE_HIGH_AMOUNT");
-        String id2 = second.body().get("screeningId").asText();
+        String id2 = second.body().get("screeningId").asString();
         var completed = Map.of("outcome", "COMPLETED", "occurredAt", CLOCK.local());
         assertThat(call("POST", "/screenings/" + id2 + "/outcome", completed).status()).isEqualTo(204);
         assertThat(call("POST", "/screenings/" + id2 + "/outcome", completed).status()).as("same outcome again").isEqualTo(204);
@@ -145,8 +145,8 @@ class ScreeningFlowIT extends IntegrationTest {
         assertThat(reasonCodes(third)).doesNotContain("R2_NEW_PAYEE_HIGH_AMOUNT");
 
         Response detail = call("GET", "/screenings/" + id2, null);
-        assertThat(detail.body().get("outcome").asText()).isEqualTo("COMPLETED");
-        assertThat(detail.body().at("/request/amount").asText()).isEqualTo("3500.00");
+        assertThat(detail.body().get("outcome").asString()).isEqualTo("COMPLETED");
+        assertThat(detail.body().at("/request/amount").asString()).isEqualTo("3500.00");
     }
 
     @Test
@@ -163,7 +163,7 @@ class ScreeningFlowIT extends IntegrationTest {
         CLOCK.advance(Duration.ofMinutes(20));
         Response out = call("POST", "/screenings", transfer(txn(), mule, account(), "9100.00"));
         assertThat(reasonCodes(out)).contains("R5_PASS_THROUGH", "R2_NEW_PAYEE_HIGH_AMOUNT");
-        assertThat(out.body().get("decision").asText()).isEqualTo("HOLD");
+        assertThat(out.body().get("decision").asString()).isEqualTo("HOLD");
     }
 
     @Test
@@ -177,7 +177,7 @@ class ScreeningFlowIT extends IntegrationTest {
 
         Response held = call("POST", "/screenings", transfer(txn(), account(), payee, "50.00"));
         assertThat(reasonCodes(held)).containsExactly("R7_WATCHLIST");
-        assertThat(held.body().get("decision").asText()).isEqualTo("HOLD");
+        assertThat(held.body().get("decision").asString()).isEqualTo("HOLD");
 
         assertThat(call("DELETE", "/watchlist/" + payee, null).status()).isEqualTo(204);
         assertThat(call("DELETE", "/watchlist/" + payee, null).status()).isEqualTo(404);
@@ -185,7 +185,7 @@ class ScreeningFlowIT extends IntegrationTest {
         assertThat(reasonCodes(after)).doesNotContain("R7_WATCHLIST");
 
         Response audit = call("GET", "/audit?entity=watchlist:" + payee, null);
-        assertThat(java.util.stream.StreamSupport.stream(audit.body().get("items").spliterator(), false).map(n -> n.get("action").asText()).toList())
+        assertThat(audit.body().get("items").valueStream().map(n -> n.get("action").asString()).toList())
                 .containsExactly("WATCHLIST_REMOVED", "WATCHLIST_UPDATED", "WATCHLIST_ADDED");
     }
 
@@ -196,7 +196,7 @@ class ScreeningFlowIT extends IntegrationTest {
         request.put("requestedAt", "2026-11-19T11:54:00+08:00");
         Response r = call("POST", "/screenings", request);
         assertThat(r.status()).isEqualTo(400);
-        assertThat(r.body().at("/errors/0/field").asText()).isEqualTo("requestedAt");
+        assertThat(r.body().at("/errors/0/field").asString()).isEqualTo("requestedAt");
     }
 
     @Test

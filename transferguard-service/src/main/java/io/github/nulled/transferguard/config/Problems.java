@@ -15,7 +15,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.stereotype.Component;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /** Builds RFC 9457 problem details with a {@code traceId}, so a support call can jump to the trace. */
 @Component
@@ -24,9 +24,9 @@ public class Problems {
     public static final String TYPE_BASE = "https://transferguard.dev/problems/";
 
     private final ObjectProvider<Tracer> tracer;
-    private final ObjectMapper mapper;
+    private final JsonMapper mapper;
 
-    public Problems(ObjectProvider<Tracer> tracer, ObjectMapper mapper) {
+    public Problems(ObjectProvider<Tracer> tracer, JsonMapper mapper) {
         this.tracer = tracer;
         this.mapper = mapper;
     }

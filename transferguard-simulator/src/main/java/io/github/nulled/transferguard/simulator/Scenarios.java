@@ -129,9 +129,9 @@ public final class Scenarios {
         if (r.status() != 201 && r.status() != 200) {
             return new Observation(scenario, scenario.fraud(), null, "ERROR", 0, List.of(), ms, r.status());
         }
-        List<String> reasons = java.util.stream.StreamSupport.stream(r.body().get("reasons").spliterator(), false).map(n -> n.get("code").asText()).toList();
-        return new Observation(scenario, scenario.fraud(), r.body().get("screeningId").asText(),
-                r.body().get("decision").asText(), r.body().get("score").asInt(), reasons, ms, r.status());
+        List<String> reasons = r.body().get("reasons").valueStream().map(n -> n.get("code").asString()).toList();
+        return new Observation(scenario, scenario.fraud(), r.body().get("screeningId").asString(),
+                r.body().get("decision").asString(), r.body().get("score").asInt(), reasons, ms, r.status());
     }
 
     /** The bank completes allowed transfers (and, for mules, challenged ones the mule passes). */

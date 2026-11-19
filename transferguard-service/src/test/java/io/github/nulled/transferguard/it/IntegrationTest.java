@@ -24,10 +24,10 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Full-stack tests against real PostgreSQL 16 and Redis 7 (Testcontainers, one container set per
@@ -43,12 +43,12 @@ public abstract class IntegrationTest {
     public static final MutableClock CLOCK = new MutableClock(Instant.parse("2026-11-19T04:00:00Z"));
     public static final String ALL = "all";
 
-    static PostgreSQLContainer<?> postgres;
+    static PostgreSQLContainer postgres;
     static GenericContainer<?> redis;
 
     static synchronized void startContainers() {
         if (postgres == null) {
-            postgres = new PostgreSQLContainer<>(DockerImageName.parse("postgres:16")).withInitScript("db/test-roles.sql");
+            postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:16")).withInitScript("db/test-roles.sql");
             redis = new GenericContainer<>(DockerImageName.parse("redis:7")).withExposedPorts(6379);
             postgres.start();
             redis.start();
@@ -104,7 +104,7 @@ public abstract class IntegrationTest {
     protected int port;
 
     @Autowired
-    protected ObjectMapper mapper;
+    protected JsonMapper mapper;
 
     @Autowired
     protected JdbcTemplate appJdbc;
@@ -174,7 +174,7 @@ public abstract class IntegrationTest {
     }
 
     protected static List<String> reasonCodes(Response r) {
-        return java.util.stream.StreamSupport.stream(r.body().get("reasons").spliterator(), false).map(n -> n.get("code").asText()).toList();
+        return r.body().get("reasons").valueStream().map(n -> n.get("code").asString()).toList();
     }
 
     protected static OffsetDateTime localNow() {

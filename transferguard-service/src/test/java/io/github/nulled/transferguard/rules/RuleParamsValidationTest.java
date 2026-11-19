@@ -62,6 +62,6 @@ class RuleParamsValidationTest {
     }
 
     private RuleParams parse(RuleCode code, String json) {
-        return config.parseParams(config.rule(code), SeedRules.json(json), "params.");
+        return config.parseParams(config.rule(code), SeedRules.MAPPER.readTree(json), "params.");
     }
 }

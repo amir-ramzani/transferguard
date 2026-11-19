@@ -24,12 +24,12 @@ import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -42,13 +42,13 @@ class RuleControllerWebTest {
     @Autowired
     MockMvc mvc;
 
-    @MockBean
+    @MockitoBean
     RuleConfigService rules;
 
-    @MockBean
+    @MockitoBean
     WatchlistService watchlist;
 
-    @MockBean
+    @MockitoBean
     JwtDecoder jwtDecoder;
 
     private static final RequestPostProcessor ADMIN =
@@ -56,7 +56,7 @@ class RuleControllerWebTest {
     private static final String BODY = "{\"enabled\":true,\"weight\":30,\"params\":{\"maxCount\":5,\"window\":\"PT15M\"}}";
 
     private static RuleView view(int version) {
-        return new RuleView(RuleCode.R1_VELOCITY, "Velocity", true, 30, SeedRules.MAPPER.createObjectNode(), version,
+        return new RuleView(RuleCode.R1_VELOCITY, "Velocity", true, 30, SeedRules.MAPPER.readTree("{}"), version,
                 OffsetDateTime.parse("2026-11-19T12:00:00+08:00"), "analyst");
     }
 

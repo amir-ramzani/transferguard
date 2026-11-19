@@ -24,10 +24,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.fasterxml.jackson.core.JacksonException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Rules and engine settings as data. Each pod keeps them in a Caffeine cache that is invalidated by
@@ -48,13 +48,13 @@ public class RuleConfigService {
     private final AuditWriter audit;
     private final RuleChangeBus bus;
     private final Validator validator;
-    private final ObjectMapper strictMapper;
-    private final ObjectMapper mapper;
+    private final JsonMapper strictMapper;
+    private final JsonMapper mapper;
     private final Clock clock;
     private final LoadingCache<String, Snapshot> cache;
 
     public RuleConfigService(RuleRepository repository, List<Rule<?>> ruleBeans, AuditWriter audit, RuleChangeBus bus,
-                             Validator validator, ObjectMapper mapper, Clock clock,
+                             Validator validator, JsonMapper mapper, Clock clock,
                              @Value("${transferguard.rules.cache-ttl:PT60S}") Duration ttl) {
         this.repository = repository;
         Map<RuleCode, Rule<?>> byCode = new EnumMap<>(RuleCode.class);
@@ -64,9 +64,10 @@ public class RuleConfigService {
         this.bus = bus;
         this.validator = validator;
         this.mapper = mapper;
-        this.strictMapper = mapper.copy()
+        this.strictMapper = mapper.rebuild()
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES);
+                .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+                .build();
         this.clock = clock;
         this.cache = Caffeine.newBuilder().expireAfterWrite(ttl).build(k -> load());
     }
@@ -205,12 +206,7 @@ public class RuleConfigService {
         }
         RuleRepository.SettingRow setting = repository.findSetting(ENGINE_KEY)
                 .orElseThrow(() -> new IllegalStateException("engine_setting 'engine' is missing"));
-        EngineSettings settings;
-        try {
-            settings = strictMapper.treeToValue(setting.value(), EngineSettings.class);
-        } catch (JacksonException e) {
-            throw new IllegalStateException("engine_setting 'engine' is invalid", e);
-        }
+        EngineSettings settings = strictMapper.treeToValue(setting.value(), EngineSettings.class);
         return new Snapshot(Collections.unmodifiableMap(defs), settings, setting.version());
     }
 

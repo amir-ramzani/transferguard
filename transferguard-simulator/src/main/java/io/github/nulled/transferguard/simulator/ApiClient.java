@@ -9,8 +9,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /** Minimal TransferGuard client with OAuth2 client-credentials token caching. */
 public final class ApiClient {
@@ -23,7 +23,7 @@ public final class ApiClient {
     }
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-    private final JsonMapper mapper = JsonMapper.builder().findAndAddModules().build();
+    private final JsonMapper mapper = JsonMapper.builder().build();
     private final String apiUrl;
     private final String tokenUrl;
     private final String clientId;
@@ -76,7 +76,7 @@ public final class ApiClient {
             throw new IllegalStateException("Token request failed: " + r.statusCode() + " " + r.body());
         }
         JsonNode json = mapper.readTree(r.body());
-        token = json.get("access_token").asText();
+        token = json.get("access_token").asString();
         tokenExpiry = Instant.now().plusSeconds(json.path("expires_in").asLong(300));
         return token;
     }

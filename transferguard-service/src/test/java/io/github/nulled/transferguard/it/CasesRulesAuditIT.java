@@ -14,8 +14,8 @@ class CasesRulesAuditIT extends IntegrationTest {
         call("PUT", "/watchlist/" + payee, Map.of("source", "MANUAL", "reason", "setup"));
         Response r = call("POST", "/screenings", transfer(txn(), account(), payee, "60.00"));
         call("DELETE", "/watchlist/" + payee, null);
-        assertThat(r.body().get("decision").asText()).isEqualTo("HOLD");
-        return r.body().get("caseId").asText();
+        assertThat(r.body().get("decision").asString()).isEqualTo("HOLD");
+        return r.body().get("caseId").asString();
     }
 
     @Test
@@ -25,11 +25,11 @@ class CasesRulesAuditIT extends IntegrationTest {
         String caseId = holdCase(payee);
 
         Response open = call("GET", "/cases?status=OPEN&size=100", null);
-        assertThat(java.util.stream.StreamSupport.stream(open.body().get("items").spliterator(), false).map(n -> n.get("caseId").asText())).contains(caseId);
+        assertThat(open.body().get("items").valueStream().map(n -> n.get("caseId").asString())).contains(caseId);
 
         Response assigned = call("PATCH", "/cases/" + caseId, Map.of("assignee", "analyst-it"));
         assertThat(assigned.status()).isEqualTo(200);
-        assertThat(assigned.body().get("assignee").asText()).isEqualTo("analyst-it");
+        assertThat(assigned.body().get("assignee").asString()).isEqualTo("analyst-it");
 
         assertThat(call("PATCH", "/cases/" + caseId, Map.of("status", "CONFIRMED_FRAUD")).status())
                 .as("resolutionNote required").isEqualTo(400);
@@ -37,7 +37,7 @@ class CasesRulesAuditIT extends IntegrationTest {
         Response resolved = call("PATCH", "/cases/" + caseId, Map.of("status", "CONFIRMED_FRAUD",
                 "resolutionNote", "Customer confirmed a scam call", "addPayeeToWatchlist", true));
         assertThat(resolved.status()).isEqualTo(200);
-        assertThat(resolved.body().get("status").asText()).isEqualTo("CONFIRMED_FRAUD");
+        assertThat(resolved.body().get("status").asString()).isEqualTo("CONFIRMED_FRAUD");
         assertThat(resolved.body().get("resolvedAt").isNull()).isFalse();
 
         assertThat(call("PATCH", "/cases/" + caseId, Map.of("assignee", "someone")).status())
@@ -47,13 +47,13 @@ class CasesRulesAuditIT extends IntegrationTest {
 
         Response detail = call("GET", "/cases/" + caseId, null);
         assertThat(detail.body().get("notes").size()).isEqualTo(2);
-        assertThat(detail.body().at("/screening/request/payeeAccount").asText()).isEqualTo(payee);
+        assertThat(detail.body().at("/screening/request/payeeAccount").asString()).isEqualTo(payee);
 
         Response watch = call("GET", "/watchlist?size=100", null);
-        assertThat(java.util.stream.StreamSupport.stream(watch.body().get("items").spliterator(), false).map(n -> n.get("accountNo").asText())).contains(payee);
+        assertThat(watch.body().get("items").valueStream().map(n -> n.get("accountNo").asString())).contains(payee);
 
         Response audit = call("GET", "/audit?entity=case:" + caseId, null);
-        assertThat(java.util.stream.StreamSupport.stream(audit.body().get("items").spliterator(), false).map(n -> n.get("action").asText()).toList())
+        assertThat(audit.body().get("items").valueStream().map(n -> n.get("action").asString()).toList())
                 .containsExactly("CASE_NOTE_ADDED", "CASE_RESOLVED", "CASE_ASSIGNED");
 
         Response verify = call("GET", "/audit/verify", null);
@@ -111,7 +111,7 @@ class CasesRulesAuditIT extends IntegrationTest {
                     Map.of("If-Match", updated.header("ETag")));
         }
         Response audit = call("GET", "/audit?entity=rule:R2_NEW_PAYEE_HIGH_AMOUNT", null);
-        assertThat(audit.body().at("/items/0/action").asText()).isEqualTo("RULE_UPDATED");
+        assertThat(audit.body().at("/items/0/action").asString()).isEqualTo("RULE_UPDATED");
     }
 
     @Test

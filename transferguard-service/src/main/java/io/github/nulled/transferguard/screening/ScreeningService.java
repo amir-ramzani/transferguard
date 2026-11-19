@@ -187,7 +187,7 @@ public class ScreeningService {
 
     private Result replay(ScreeningRepository.Row stored, String hash) {
         if (!stored.requestHash().equals(hash)) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "idempotency-mismatch",
+            throw new ApiException(HttpStatus.UNPROCESSABLE_CONTENT, "idempotency-mismatch",
                     "Transaction ID reused", "This transactionId was already screened with a different request body.",
                     null, null);
         }

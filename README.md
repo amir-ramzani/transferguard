@@ -6,7 +6,7 @@ TransferGuard screens an outgoing bank transfer before the money leaves the acco
 **ALLOW**, **CHALLENGE** or **HOLD** with human-readable reasons, targeting under 100 ms at p95. It
 also spots mule accounts that receive money from many senders and pass it on quickly.
 
-Java 21 · Spring Boot 3 · PostgreSQL 16 · Redis 7 · Docker Compose · Helm
+Java 21 · Spring Boot 4.1 · PostgreSQL 16 · Redis 7 · Docker Compose · Helm
 
 ```http
 POST /api/v1/screenings
@@ -188,7 +188,7 @@ CI/CD lives in `.github/workflows/`:
 
 | Workflow | Runs | What |
 |---|---|---|
-| `pretest.yml` | called by CI/CD, or by hand | Unit, contract, web-slice and ArchUnit tests on JDK 21; PIT mutation gate |
+| `pretest.yml` | called by CI/CD, or by hand | Unit, contract, web-slice and ArchUnit tests on JDK 21 and 25; PIT mutation gate |
 | `ci.yml` (CI/CD) | every PR and push to `main` | Pre-test → Testcontainers integration tests with the 80% coverage gate (and SonarCloud if `SONAR_TOKEN` is set), in parallel with CodeQL, gitleaks and Trivy → on `main`: push both images to GHCR with Jib, Trivy image scan, CycloneDX SBOMs, keyless cosign signatures → post-test |
 | `posttest.yml` | called by CI/CD and nightly, or by hand | Starts the stack with Docker Compose, seeds history, runs the five scenarios and `scripts/smoke-test.sh`; optional k6 smoke. On PRs it builds the images from the commit; on `main` it tests the exact published digests |
 | `nightly.yml` | 02:00 Kuala Lumpur time | Post-test with the k6 load smoke (so R4 fires too) |
@@ -221,7 +221,7 @@ The data is synthetic, so read precision and recall as a regression baseline, no
 ADRs: [001 rules before ML](docs/adr/001-rules-before-machine-learning.md) ·
 [002 Redis feature store](docs/adr/002-redis-feature-store.md) ·
 [003 fail degraded](docs/adr/003-fail-degraded.md) ·
-[004 Spring Boot 3](docs/adr/004-spring-boot-3.md) ·
+[004 Spring Boot 4](docs/adr/004-spring-boot-4.md) ·
 [005 modular monolith](docs/adr/005-modular-monolith.md).
 The original [high-level design](docs/design/high-level-design.md) and
 [implementation plan](docs/design/implementation-plan.md) are in `docs/design/`.

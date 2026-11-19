@@ -21,13 +21,13 @@ class DegradedModeIT extends IntegrationTest {
         Response small = call("POST", "/screenings", transfer(txn(), account(), account(), "200.00"));
         assertThat(small.status()).isEqualTo(201);
         assertThat(small.body().get("degraded").asBoolean()).isTrue();
-        assertThat(small.body().get("decision").asText()).isEqualTo("ALLOW");
+        assertThat(small.body().get("decision").asString()).isEqualTo("ALLOW");
         assertThat(reasonCodes(small)).containsExactly("DEGRADED_SCREENING");
-        assertThat(small.body().at("/reasons/0/message").asText())
+        assertThat(small.body().at("/reasons/0/message").asString())
                 .contains("R1_VELOCITY", "R5_PASS_THROUGH", "R6_NEW_DEVICE");
 
         Response large = call("POST", "/screenings", transfer(txn(), account(), account(), "1500.00"));
-        assertThat(large.body().get("decision").asText()).isEqualTo("CHALLENGE");
+        assertThat(large.body().get("decision").asString()).isEqualTo("CHALLENGE");
     }
 
     @Test

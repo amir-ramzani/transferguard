@@ -6,9 +6,8 @@ import java.time.temporal.ChronoUnit;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Appends one hash-chained row in the caller's transaction, so an administrative change and its
@@ -18,10 +17,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class AuditWriter {
 
     private final AuditRepository repository;
-    private final ObjectMapper mapper;
+    private final JsonMapper mapper;
     private final Clock clock;
 
-    public AuditWriter(AuditRepository repository, ObjectMapper mapper, Clock clock) {
+    public AuditWriter(AuditRepository repository, JsonMapper mapper, Clock clock) {
         this.repository = repository;
         this.mapper = mapper;
         this.clock = clock;
@@ -46,10 +45,6 @@ public class AuditWriter {
             return node;
         }
         // Round-trip through text so the hashed tree has the same shape as the stored jsonb.
-        try {
-            return mapper.readTree(mapper.writeValueAsString(value));
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Cannot serialise audit value", e);
-        }
+        return mapper.readTree(mapper.writeValueAsString(value));
     }
 }

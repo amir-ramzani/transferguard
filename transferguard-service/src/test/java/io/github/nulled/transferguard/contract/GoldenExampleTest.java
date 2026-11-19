@@ -17,7 +17,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Pins the contract's example: the takeover request in docs/openapi.yaml, with the account state the
@@ -32,10 +32,10 @@ class GoldenExampleTest {
         JsonNode request = spec.at("/paths/~1screenings/post/requestBody/content/application~1json/examples/takeover/value");
         JsonNode expected = spec.at("/components/examples/HoldResponse/value");
 
-        Instant requestedAt = OffsetDateTime.parse(request.get("requestedAt").asText()).toInstant();
-        Transfer transfer = new Transfer(request.get("transactionId").asText(), request.get("sourceAccount").asText(),
-                request.get("payeeAccount").asText(), new BigDecimal(request.get("amount").asText()),
-                request.get("deviceId").asText(), requestedAt);
+        Instant requestedAt = OffsetDateTime.parse(request.get("requestedAt").asString()).toInstant();
+        Transfer transfer = new Transfer(request.get("transactionId").asString(), request.get("sourceAccount").asString(),
+                request.get("payeeAccount").asString(), new BigDecimal(request.get("amount").asString()),
+                request.get("deviceId").asString(), requestedAt);
         // State behind the example: a new payee, a 600.00 average over 3+ transfers, a device change
         // 12 minutes earlier, nothing else.
         Features features = Features.builder()
@@ -51,9 +51,9 @@ class GoldenExampleTest {
         var decision = new DecisionPolicy().decide(eval.score(), false, transfer.amount(), SeedRules.settings());
 
         assertThat(eval.score()).isEqualTo(expected.get("score").asInt());
-        assertThat(decision.name()).isEqualTo(expected.get("decision").asText());
-        List<RuleHit> expectedReasons = java.util.stream.StreamSupport.stream(expected.get("reasons").spliterator(), false)
-                .map(r -> new RuleHit(r.get("code").asText(), r.get("points").asInt(), r.get("message").asText()))
+        assertThat(decision.name()).isEqualTo(expected.get("decision").asString());
+        List<RuleHit> expectedReasons = expected.get("reasons").valueStream()
+                .map(r -> new RuleHit(r.get("code").asString(), r.get("points").asInt(), r.get("message").asString()))
                 .toList();
         assertThat(eval.hits()).containsExactlyElementsOf(expectedReasons);
     }

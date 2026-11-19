@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * RFC 8785 JSON Canonicalization Scheme (JCS): object members sorted by UTF-16 code units, no
@@ -49,14 +49,14 @@ public final class CanonicalJson {
                 write(node.get(i), out);
             }
             out.append(']');
-        } else if (node.isTextual()) {
-            writeString(node.asText(), out);
+        } else if (node.isString()) {
+            writeString(node.asString(), out);
         } else if (node.isBoolean()) {
             out.append(node.booleanValue() ? "true" : "false");
         } else if (node.isNumber()) {
             out.append(number(node.doubleValue()));
         } else {
-            writeString(node.asText(), out);
+            writeString(node.asString(), out);
         }
     }
 

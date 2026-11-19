@@ -27,13 +27,13 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -46,13 +46,13 @@ class ScreeningControllerWebTest {
     @Autowired
     MockMvc mvc;
 
-    @MockBean
+    @MockitoBean
     ScreeningService screening;
 
-    @MockBean
+    @MockitoBean
     OutcomeService outcomes;
 
-    @MockBean
+    @MockitoBean
     JwtDecoder jwtDecoder;
 
     private static RequestPostProcessor scope(String scope) {

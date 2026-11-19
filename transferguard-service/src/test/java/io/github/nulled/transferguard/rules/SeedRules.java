@@ -21,26 +21,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /** The rules exactly as the Flyway seed (V2, V3) defines them, for tests that run without a database. */
 public final class SeedRules {
 
-    public static final JsonMapper MAPPER = JsonMapper.builder().findAndAddModules().build();
+    public static final JsonMapper MAPPER = JsonMapper.builder().build();
     private static final Path MIGRATIONS = Path.of("src/main/resources/db/migration");
     private static final Pattern ROW = Pattern.compile(
             "\\('(R\\d_[A-Z_]+)',\\s*'([^']*)',\\s*(true|false),\\s*(\\d+),\\s*'(\\{[^']*\\})'\\)");
 
     private SeedRules() {}
-
-    public static JsonNode json(String text) {
-        try {
-            return MAPPER.readTree(text);
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
-        }
-    }
 
     public static List<Rule<?>> beans() {
         return List.of(new VelocityRule(), new NewPayeeHighAmountRule(), new AmountAnomalyRule(), new OddHoursRule(),
@@ -60,7 +52,7 @@ public final class SeedRules {
         List<SeedRow> rows = new ArrayList<>();
         while (m.find()) {
             rows.add(new SeedRow(m.group(1), m.group(2), Boolean.parseBoolean(m.group(3)),
-                    Integer.parseInt(m.group(4)), json(m.group(5))));
+                    Integer.parseInt(m.group(4)), MAPPER.readTree(m.group(5))));
         }
         return rows;
     }
@@ -82,11 +74,7 @@ public final class SeedRules {
         if (!m.find()) {
             throw new IllegalStateException("No engine row in V3");
         }
-        try {
-            return MAPPER.readValue(m.group(1), EngineSettings.class);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+        return MAPPER.readValue(m.group(1), EngineSettings.class);
     }
 
     private static String read(String file) {

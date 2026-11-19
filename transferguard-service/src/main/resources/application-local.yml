@@ -17,7 +17,11 @@ transferguard:
 
 management:
   tracing:
-    enabled: ${TRACING_EXPORT_ENABLED:false}
-  otlp:
+    export:
+      otlp:
+        enabled: ${TRACING_EXPORT_ENABLED:false}
+  opentelemetry:
     tracing:
-      endpoint: ${OTLP_TRACES_ENDPOINT:http://tempo:4318/v1/traces}
+      export:
+        otlp:
+          endpoint: ${OTLP_TRACES_ENDPOINT:http://tempo:4318/v1/traces}

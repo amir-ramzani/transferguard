@@ -9,9 +9,8 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 @Repository
 public class RuleRepository {
@@ -22,9 +21,9 @@ public class RuleRepository {
     public record SettingRow(JsonNode value, int version, Instant updatedAt, String updatedBy) {}
 
     private final JdbcClient jdbc;
-    private final ObjectMapper mapper;
+    private final JsonMapper mapper;
 
-    public RuleRepository(JdbcClient jdbc, ObjectMapper mapper) {
+    public RuleRepository(JdbcClient jdbc, JsonMapper mapper) {
         this.jdbc = jdbc;
         this.mapper = mapper;
     }
@@ -48,7 +47,7 @@ public class RuleRepository {
                 UPDATE rule SET enabled = ?, weight = ?, params = ?::jsonb, version = version + 1,
                                 updated_at = ?, updated_by = ?
                 WHERE code = ? AND version = ?""")
-                .params(enabled, weight, write(params), OffsetDateTime.ofInstant(now, ZoneOffset.UTC),
+                .params(enabled, weight, mapper.writeValueAsString(params), OffsetDateTime.ofInstant(now, ZoneOffset.UTC),
                         actor, code, expectedVersion)
                 .update() == 1;
     }
@@ -56,7 +55,7 @@ public class RuleRepository {
     public Optional<SettingRow> findSetting(String key) {
         return jdbc.sql("SELECT value::text AS value, version, updated_at, updated_by FROM engine_setting WHERE key = ?")
                 .param(key)
-                .query((rs, n) -> new SettingRow(read(rs.getString("value")), rs.getInt("version"),
+                .query((rs, n) -> new SettingRow(mapper.readTree(rs.getString("value")), rs.getInt("version"),
                         rs.getObject("updated_at", OffsetDateTime.class).toInstant(), rs.getString("updated_by")))
                 .optional();
     }
@@ -65,30 +64,14 @@ public class RuleRepository {
         return jdbc.sql("""
                 UPDATE engine_setting SET value = ?::jsonb, version = version + 1, updated_at = ?, updated_by = ?
                 WHERE key = ? AND version = ?""")
-                .params(write(value), OffsetDateTime.ofInstant(now, ZoneOffset.UTC), actor, key,
+                .params(mapper.writeValueAsString(value), OffsetDateTime.ofInstant(now, ZoneOffset.UTC), actor, key,
                         expectedVersion)
                 .update() == 1;
     }
 
     private RuleRow mapRule(ResultSet rs, int n) throws SQLException {
         return new RuleRow(rs.getString("code"), rs.getString("name"), rs.getBoolean("enabled"), rs.getInt("weight"),
-                read(rs.getString("params")), rs.getInt("version"),
+                mapper.readTree(rs.getString("params")), rs.getInt("version"),
                 rs.getObject("updated_at", OffsetDateTime.class).toInstant(), rs.getString("updated_by"));
-    }
-
-    private String write(JsonNode node) {
-        try {
-            return mapper.writeValueAsString(node);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Unwritable rule JSON", e);
-        }
-    }
-
-    private JsonNode read(String text) {
-        try {
-            return mapper.readTree(text);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Unreadable rule JSON", e);
-        }
     }
 }

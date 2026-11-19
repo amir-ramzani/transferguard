@@ -12,9 +12,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 @Repository
 public class AuditRepository {
@@ -24,9 +23,9 @@ public class AuditRepository {
 
     private final JdbcClient jdbc;
     private final JdbcTemplate streaming;
-    private final ObjectMapper mapper;
+    private final JsonMapper mapper;
 
-    public AuditRepository(JdbcClient jdbc, JdbcTemplate template, ObjectMapper mapper) {
+    public AuditRepository(JdbcClient jdbc, JdbcTemplate template, JsonMapper mapper) {
         this.jdbc = jdbc;
         // A private template so the fetch size doesn't leak into the shared one.
         this.streaming = new JdbcTemplate(template.getDataSource());
@@ -81,18 +80,10 @@ public class AuditRepository {
     }
 
     private JsonNode node(String text) {
-        try {
-            return text == null ? null : mapper.readTree(text);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Unreadable audit JSON", e);
-        }
+        return text == null ? null : mapper.readTree(text);
     }
 
     private String json(JsonNode node) {
-        try {
-            return node == null || node.isNull() ? null : mapper.writeValueAsString(node);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Unwritable audit JSON", e);
-        }
+        return node == null || node.isNull() ? null : mapper.writeValueAsString(node);
     }
 }

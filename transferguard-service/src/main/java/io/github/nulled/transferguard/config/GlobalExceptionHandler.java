@@ -18,7 +18,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.jdbc.CannotGetJdbcConnectionException;
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -29,7 +29,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
-import com.fasterxml.jackson.databind.JsonMappingException;
+import tools.jackson.databind.DatabindException;
 
 /** Every error is an RFC 9457 problem with a traceId; validation errors list each invalid field. */
 @RestControllerAdvice
@@ -107,7 +107,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                                             HttpHeaders headers, HttpStatusCode status,
                                                                             WebRequest request) {
         List<FieldError> errors = new ArrayList<>();
-        ex.getAllValidationResults().forEach(r -> r.getResolvableErrors().forEach(err -> errors.add(
+        ex.getParameterValidationResults().forEach(r -> r.getResolvableErrors().forEach(err -> errors.add(
                 new FieldError(r.getMethodParameter().getParameterName(), err.getDefaultMessage()))));
         return cast(validation(errors, ((ServletWebRequest) request).getRequest()));
     }
@@ -118,15 +118,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                                   WebRequest request) {
         HttpServletRequest servlet = ((ServletWebRequest) request).getRequest();
         if (rootCause(ex) instanceof RequestSizeFilter.PayloadTooLargeException) {
-            return cast(ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(problems.build(
-                    HttpStatus.PAYLOAD_TOO_LARGE, "payload-too-large", "Payload too large",
+            return cast(ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(problems.build(
+                    HttpStatus.CONTENT_TOO_LARGE, "payload-too-large", "Payload too large",
                     "Request bodies are limited to 16 KB.", servlet.getRequestURI(), null)));
         }
         String field = "body";
         String message = "is not valid JSON for this operation";
-        if (ex.getCause() instanceof JsonMappingException db) {
+        if (ex.getCause() instanceof DatabindException db) {
             String path = db.getPath().stream()
-                    .map(ref -> ref.getFieldName() != null ? ref.getFieldName() : "[" + ref.getIndex() + "]")
+                    .map(ref -> ref.getPropertyName() != null ? ref.getPropertyName() : "[" + ref.getIndex() + "]")
                     .reduce((a, b) -> b.startsWith("[") ? a + b : a + "." + b).orElse("body");
             field = path;
             message = db.getOriginalMessage().contains("Unrecognized property") ? "is not a known field"
